@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Gąbka Mengera</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    h1 {
+      margin-top: 16px;
+      font-size: 1.3rem;
+      letter-spacing: 4px;
+      color: #88aaff;
+      text-transform: uppercase;
+    }
+
+    canvas {
+      cursor: grab;
+      margin-top: 8px;
+    }
+
+    canvas:active { cursor: grabbing; }
+
+    .controls {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      margin-top: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    label { font-size: 0.85rem; color: #aaa; }
+
+    input[type=range] {
+      accent-color: #88aaff;
+      width: 120px;
+    }
+
+    .info {
+      margin-top: 6px;
+      font-size: 0.75rem;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Gąbka Mengera</h1>
+<canvas id="c" width="640" height="500"></canvas>
+
+<div class="controls">
+  <label>
+    Poziom:
+    <input type="range" id="level" min="0" max="3" value="2" step="1">
+    <span id="levelVal">2</span>
+  </label>
+
+  <label>
+    Zoom:
+    <input type="range" id="zoom" min="100" max="400" value="220" step="10">
+  </label>
+</div>
+
+<div class="info">🖱 Przeciągnij myszką, żeby obracać</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  KROK 1: Generowanie kostek gąbki
+// ─────────────────────────────────────────────
+
+// Gąbka Mengera to kostka, z której rekurencyjnie
+// usuwamy środkowe sześciany (1 środkowy na każdej ściance + 1 w centrum).
+// W każdym kroku dzielimy kostkę 3x3x3 i usuwamy 7 z 27 mini-kostek.
+
+// Sprawdza, czy mini-kostka na pozycji (x, y, z) w siatce 3x3x3
+// powinna zostać usunięta.
+function czyUsunac(x, y, z) {
+  // Liczymy, ile współrzędnych jest "środkowe" (równe 1 w siatce 0-1-2)
+  let srodkowe = 0;
+  if (x === 1) srodkowe++;
+  if (y === 1) srodkowe++;
+  if (z === 1) srodkowe++;
+  // Usuwamy jeśli co najmniej 2 współrzędne są środkowe
+  return srodkowe >= 2;
+}
+
+// Generuje listę kostek jako [cx, cy, cz, rozmiar]
+// start: punkt startowy, size: rozmiar aktualnej kostki, level: ile razy jeszcze dzielić
+function generujKostki(sx, sy, sz, size, level) {
+  if (level === 0) {
+    // Zatrzymujemy rekurencję – zwracamy jedną kostkę
+    return [[sx, sy, sz, size]];
+  }
+
+  const maly = size / 3; // rozmiar mini-kostki
+  const kostki = [];
+
+  for (let x = 0; x < 3; x++) {
+    for (let y = 0; y < 3; y++) {
+      for (let z = 0; z < 3; z++) {
+        if (czyUsunac(x, y, z)) continue; // ta kostka jest wycinana
+
+        // Pozycja mini-kostki
+        const nx = sx + x * maly;
+        const ny = sy + y * maly;
+        const nz = sz + z * maly;
+
+        // Rekurencja: dzielimy mini-kostkę dalej
+        const podkostki = generujKostki(nx, ny, nz, maly, level - 1);
+        for (const k of podkostki) kostki.push(k);
+      }
+    }
+  }
+
+  return kostki;
+}
+
+// ─────────────────────────────────────────────
+//  KROK 2: Rysowanie 3D na 2D (projekcja)
+// ─────────────────────────────────────────────
+
+// Obracamy punkt 3D wokół osi Y i X
+function obrocPunkt(x, y, z, rotY, rotX) {
+  // Obrót wokół Y (lewo-prawo)
+  const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+  const x1 = x * cosY - z * sinY;
+  const z1 = x * sinY + z * cosY;
+
+  // Obrót wokół X (góra-dół)
+  const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+  const y1 = y * cosX - z1 * sinX;
+  const z2 = y * sinX + z1 * cosX;
+
+  return [x1, y1, z2];
+}
+
+// Rzutowanie perspektywiczne: zamienia 3D → 2D
+function rzutuj(x, y, z, zoom) {
+  const odleglosc = 4; // "kamera" jest dalej
+  const skala = zoom / (z + odleglosc);
+  return [x * skala, y * skala];
+}
+
+// Rysuje jedną ścianę (4 wierzchołki) wypełnioną kolorem
+function rysujSciane(ctx, punkty2D, kolor) {
+  ctx.beginPath();
+  ctx.moveTo(punkty2D[0][0], punkty2D[0][1]);
+  for (let i = 1; i < punkty2D.length; i++) {
+    ctx.lineTo(punkty2D[i][0], punkty2D[i][1]);
+  }
+  ctx.closePath();
+  ctx.fillStyle = kolor;
+  ctx.fill();
+}
+
+// ─────────────────────────────────────────────
+//  KROK 3: Główna pętla rysowania
+// ─────────────────────────────────────────────
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+let rotY = 0.5, rotX = -0.4; // kąty obrotu
+let zoom = 220;
+let level = 2;
+let kostki = [];
+
+function przeliczKostki() {
+  // Generujemy kostki w zakresie od -1 do 1
+  kostki = generujKostki(-1, -1, -1, 2, level);
+}
+
+function rysuj() {
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(0, 0, W, H);
+
+  // Sortujemy kostki od najdalej do najbliżej (painter's algorithm)
+  const zSort = kostki.map(k => {
+    const cx = k[0] + k[3] / 2;
+    const cy = k[1] + k[3] / 2;
+    const cz = k[2] + k[3] / 2;
+    const [rx, ry, rz] = obrocPunkt(cx, cy, cz, rotY, rotX);
+    return { k, rz };
+  });
+  zSort.sort((a, b) => b.rz - a.rz); // dalej = rysujemy pierwsze
+
+  for (const { k } of zSort) {
+    rysujKostke(k[0], k[1], k[2], k[3]);
+  }
+}
+
+function rysujKostke(sx, sy, sz, s) {
+  // 8 wierzchołków kostki
+  const v = [
+    [sx,   sy,   sz  ],
+    [sx+s, sy,   sz  ],
+    [sx+s, sy+s, sz  ],
+    [sx,   sy+s, sz  ],
+    [sx,   sy,   sz+s],
+    [sx+s, sy,   sz+s],
+    [sx+s, sy+s, sz+s],
+    [sx,   sy+s, sz+s],
+  ];
+
+  // Obracamy i rzutujemy każdy wierzchołek
+  const p = v.map(([x, y, z]) => {
+    const [rx, ry, rz] = obrocPunkt(x, y, z, rotY, rotX);
+    const [px, py] = rzutuj(rx, ry, rz, zoom);
+    return [px + W/2, py + H/2, rz]; // przesuwamy do środka ekranu
+  });
+
+  // 6 ścian kostki, każda z innym kolorem (ciemniejszy = boczne)
+  const sciany = [
+    { idx: [0,1,2,3], kolor: '#3a5aaa' }, // przód
+    { idx: [4,5,6,7], kolor: '#2a3a77' }, // tył
+    { idx: [0,1,5,4], kolor: '#1e2d5a' }, // dół
+    { idx: [2,3,7,6], kolor: '#4a6acc' }, // góra
+    { idx: [0,3,7,4], kolor: '#223388' }, // lewo
+    { idx: [1,2,6,5], kolor: '#2e4499' }, // prawo
+  ];
+
+  // Rysujemy tylko ściany "patrzące" na nas
+  for (const sc of sciany) {
+    const pts = sc.idx.map(i => p[i]);
+
+    // Sprawdzamy normalną (czy ściana jest widoczna)
+    const ax = pts[1][0] - pts[0][0], ay = pts[1][1] - pts[0][1];
+    const bx = pts[2][0] - pts[0][0], by = pts[2][1] - pts[0][1];
+    if (ax * by - ay * bx < 0) continue; // ściana tyłem – pomijamy
+
+    rysujSciane(ctx, pts, sc.kolor);
+
+    // Kontur ściany
+    ctx.strokeStyle = 'rgba(140,180,255,0.25)';
+    ctx.lineWidth = 0.4;
+    ctx.stroke();
+  }
+}
+
+// ─────────────────────────────────────────────
+//  KROK 4: Obsługa myszki (obrót)
+// ─────────────────────────────────────────────
+
+let ciagniety = false;
+let ostatX, ostatY;
+
+canvas.addEventListener('mousedown', e => {
+  ciagniety = true;
+  ostatX = e.clientX;
+  ostatY = e.clientY;
+});
+
+window.addEventListener('mouseup', () => { ciagniety = false; });
+
+window.addEventListener('mousemove', e => {
+  if (!ciagniety) return;
+  const dx = e.clientX - ostatX;
+  const dy = e.clientY - ostatY;
+  rotY += dx * 0.01; // obrót poziomy
+  rotX += dy * 0.01; // obrót pionowy
+  ostatX = e.clientX;
+  ostatY = e.clientY;
+  rysuj();
+});
+
+// ─────────────────────────────────────────────
+//  KROK 5: Suwaki
+// ─────────────────────────────────────────────
+
+const sliderLevel = document.getElementById('level');
+const spanLevel   = document.getElementById('levelVal');
+const sliderZoom  = document.getElementById('zoom');
+
+sliderLevel.addEventListener('input', () => {
+  level = parseInt(sliderLevel.value);
+  spanLevel.textContent = level;
+  przeliczKostki();
+  rysuj();
+});
+
+sliderZoom.addEventListener('input', () => {
+  zoom = parseInt(sliderZoom.value);
+  rysuj();
+});
+
+// ─────────────────────────────────────────────
+//  START
+// ─────────────────────────────────────────────
+przeliczKostki();
+rysuj();
+</script>
+</body>
+</html>
