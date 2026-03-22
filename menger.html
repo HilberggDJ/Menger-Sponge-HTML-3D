@@ -216,37 +216,44 @@ function rysujKostke(sx, sy, sz, s) {
     [sx,   sy+s, sz+s],
   ];
 
-  // Obracamy i rzutujemy każdy wierzchołek
-  const p = v.map(([x, y, z]) => {
-    const [rx, ry, rz] = obrocPunkt(x, y, z, rotY, rotX);
+  // Obracamy każdy wierzchołek
+  const r = v.map(([x, y, z]) => obrocPunkt(x, y, z, rotY, rotX));
+  const p = r.map(([rx, ry, rz]) => {
     const [px, py] = rzutuj(rx, ry, rz, zoom);
-    return [px + W/2, py + H/2, rz]; // przesuwamy do środka ekranu
+    return [px + W/2, py + H/2];
   });
 
-  // 6 ścian kostki, każda z innym kolorem (ciemniejszy = boczne)
+  // Każda ściana ma swoją normalną 3D (kierunek "na zewnątrz" kostki)
   const sciany = [
-    { idx: [0,1,2,3], kolor: '#3a5aaa' }, // przód
-    { idx: [4,5,6,7], kolor: '#2a3a77' }, // tył
-    { idx: [0,1,5,4], kolor: '#1e2d5a' }, // dół
-    { idx: [2,3,7,6], kolor: '#4a6acc' }, // góra
-    { idx: [0,3,7,4], kolor: '#223388' }, // lewo
-    { idx: [1,2,6,5], kolor: '#2e4499' }, // prawo
+    { idx: [0,1,2,3], nx:  0,  ny:  0,  nz: -1, bazKolor: [58, 90, 170]  }, // przód  (Z-)
+    { idx: [7,6,5,4], nx:  0,  ny:  0,  nz:  1, bazKolor: [40, 60, 120]  }, // tył    (Z+)
+    { idx: [3,2,6,7], nx:  0,  ny:  1,  nz:  0, bazKolor: [74, 106, 204] }, // góra   (Y+)
+    { idx: [4,5,1,0], nx:  0,  ny: -1,  nz:  0, bazKolor: [30, 45, 90]   }, // dół    (Y-)
+    { idx: [4,0,3,7], nx: -1,  ny:  0,  nz:  0, bazKolor: [34, 51, 136]  }, // lewo   (X-)
+    { idx: [1,5,6,2], nx:  1,  ny:  0,  nz:  0, bazKolor: [46, 68, 153]  }, // prawo  (X+)
   ];
 
-  // Rysujemy tylko ściany "patrzące" na nas
   for (const sc of sciany) {
+    // Obróć normalną razem z kostką
+    const [rnx, rny, rnz] = obrocPunkt(sc.nx, sc.ny, sc.nz, rotY, rotX);
+
+    // Ściana widoczna tylko jeśli jej normalna skierowana ku kamerze (Z ujemne)
+    if (rnz > 0) continue;
+
+    // Oświetlenie: im bardziej normalna skierowana ku nam, tym jaśniejsza
+    const swiatlo = Math.max(0, -rnz);
+    const [r0, g0, b0] = sc.bazKolor;
+    const r1 = Math.min(255, Math.round(r0 * (0.4 + 0.8 * swiatlo)));
+    const g1 = Math.min(255, Math.round(g0 * (0.4 + 0.8 * swiatlo)));
+    const b1 = Math.min(255, Math.round(b0 * (0.4 + 0.8 * swiatlo)));
+    const kolor = `rgb(${r1},${g1},${b1})`;
+
     const pts = sc.idx.map(i => p[i]);
+    rysujSciane(ctx, pts, kolor);
 
-    // Sprawdzamy normalną (czy ściana jest widoczna)
-    const ax = pts[1][0] - pts[0][0], ay = pts[1][1] - pts[0][1];
-    const bx = pts[2][0] - pts[0][0], by = pts[2][1] - pts[0][1];
-    if (ax * by - ay * bx < 0) continue; // ściana tyłem – pomijamy
-
-    rysujSciane(ctx, pts, sc.kolor);
-
-    // Kontur ściany
-    ctx.strokeStyle = 'rgba(140,180,255,0.25)';
-    ctx.lineWidth = 0.4;
+    // Wyraźny kontur zewnętrzny
+    ctx.strokeStyle = `rgba(180,210,255,0.6)`;
+    ctx.lineWidth = 0.8;
     ctx.stroke();
   }
 }
