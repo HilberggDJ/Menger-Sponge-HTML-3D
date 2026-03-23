@@ -183,77 +183,79 @@ function przeliczKostki() {
   kostki = generujKostki(-1, -1, -1, 2, level);
 }
 
+// Definicje ścian – normalne i kolory bazy
+const SCIANY_DEF = [
+  { idx: [0,1,2,3], nx:  0,  ny:  0,  nz: -1, bazKolor: [58, 90, 170]  }, // przód
+  { idx: [7,6,5,4], nx:  0,  ny:  0,  nz:  1, bazKolor: [40, 60, 120]  }, // tył
+  { idx: [3,2,6,7], nx:  0,  ny:  1,  nz:  0, bazKolor: [74, 106, 204] }, // góra
+  { idx: [4,5,1,0], nx:  0,  ny: -1,  nz:  0, bazKolor: [30, 45, 90]   }, // dół
+  { idx: [4,0,3,7], nx: -1,  ny:  0,  nz:  0, bazKolor: [34, 51, 136]  }, // lewo
+  { idx: [1,5,6,2], nx:  1,  ny:  0,  nz:  0, bazKolor: [46, 68, 153]  }, // prawo
+];
+
 function rysuj() {
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = '#0a0a0f';
   ctx.fillRect(0, 0, W, H);
 
-  // Sortujemy kostki od najdalej do najbliżej (painter's algorithm)
-  const zSort = kostki.map(k => {
-    const cx = k[0] + k[3] / 2;
-    const cy = k[1] + k[3] / 2;
-    const cz = k[2] + k[3] / 2;
-    const [rx, ry, rz] = obrocPunkt(cx, cy, cz, rotY, rotX);
-    return { k, rz };
-  });
-  zSort.sort((a, b) => b.rz - a.rz); // dalej = rysujemy pierwsze
+  // Zbieramy wszystkie widoczne ściany ze wszystkich kostek
+  const wszystkieSciany = [];
 
-  for (const { k } of zSort) {
-    rysujKostke(k[0], k[1], k[2], k[3]);
+  for (const k of kostki) {
+    const [sx, sy, sz, s] = k;
+
+    const v = [
+      [sx,   sy,   sz  ],
+      [sx+s, sy,   sz  ],
+      [sx+s, sy+s, sz  ],
+      [sx,   sy+s, sz  ],
+      [sx,   sy,   sz+s],
+      [sx+s, sy,   sz+s],
+      [sx+s, sy+s, sz+s],
+      [sx,   sy+s, sz+s],
+    ];
+
+    // Obracamy wierzchołki (zachowujemy z dla sortowania)
+    const obr = v.map(([x, y, z]) => obrocPunkt(x, y, z, rotY, rotX));
+    const p2d = obr.map(([rx, ry, rz]) => {
+      const [px, py] = rzutuj(rx, ry, rz, zoom);
+      return [px + W/2, py + H/2];
+    });
+
+    for (const sc of SCIANY_DEF) {
+      const [, , rnz] = obrocPunkt(sc.nx, sc.ny, sc.nz, rotY, rotX);
+      if (rnz > 0) continue; // ściana patrzy w tył
+
+      // Średnie Z wierzchołków ściany – do sortowania
+      const avgZ = sc.idx.reduce((sum, i) => sum + obr[i][2], 0) / 4;
+
+      const swiatlo = Math.max(0, -rnz);
+      const [r0, g0, b0] = sc.bazKolor;
+      const r1 = Math.min(255, Math.round(r0 * (0.4 + 0.8 * swiatlo)));
+      const g1 = Math.min(255, Math.round(g0 * (0.4 + 0.8 * swiatlo)));
+      const b1 = Math.min(255, Math.round(b0 * (0.4 + 0.8 * swiatlo)));
+
+      wszystkieSciany.push({
+        pts: sc.idx.map(i => p2d[i]),
+        kolor: `rgb(${r1},${g1},${b1})`,
+        avgZ
+      });
+    }
   }
-}
 
-function rysujKostke(sx, sy, sz, s) {
-  // 8 wierzchołków kostki
-  const v = [
-    [sx,   sy,   sz  ],
-    [sx+s, sy,   sz  ],
-    [sx+s, sy+s, sz  ],
-    [sx,   sy+s, sz  ],
-    [sx,   sy,   sz+s],
-    [sx+s, sy,   sz+s],
-    [sx+s, sy+s, sz+s],
-    [sx,   sy+s, sz+s],
-  ];
+  // Sortujemy ściany: dalsze najpierw
+  wszystkieSciany.sort((a, b) => b.avgZ - a.avgZ);
 
-  // Obracamy każdy wierzchołek
-  const r = v.map(([x, y, z]) => obrocPunkt(x, y, z, rotY, rotX));
-  const p = r.map(([rx, ry, rz]) => {
-    const [px, py] = rzutuj(rx, ry, rz, zoom);
-    return [px + W/2, py + H/2];
-  });
-
-  // Każda ściana ma swoją normalną 3D (kierunek "na zewnątrz" kostki)
-  const sciany = [
-    { idx: [0,1,2,3], nx:  0,  ny:  0,  nz: -1, bazKolor: [58, 90, 170]  }, // przód  (Z-)
-    { idx: [7,6,5,4], nx:  0,  ny:  0,  nz:  1, bazKolor: [40, 60, 120]  }, // tył    (Z+)
-    { idx: [3,2,6,7], nx:  0,  ny:  1,  nz:  0, bazKolor: [74, 106, 204] }, // góra   (Y+)
-    { idx: [4,5,1,0], nx:  0,  ny: -1,  nz:  0, bazKolor: [30, 45, 90]   }, // dół    (Y-)
-    { idx: [4,0,3,7], nx: -1,  ny:  0,  nz:  0, bazKolor: [34, 51, 136]  }, // lewo   (X-)
-    { idx: [1,5,6,2], nx:  1,  ny:  0,  nz:  0, bazKolor: [46, 68, 153]  }, // prawo  (X+)
-  ];
-
-  for (const sc of sciany) {
-    // Obróć normalną razem z kostką
-    const [rnx, rny, rnz] = obrocPunkt(sc.nx, sc.ny, sc.nz, rotY, rotX);
-
-    // Ściana widoczna tylko jeśli jej normalna skierowana ku kamerze (Z ujemne)
-    if (rnz > 0) continue;
-
-    // Oświetlenie: im bardziej normalna skierowana ku nam, tym jaśniejsza
-    const swiatlo = Math.max(0, -rnz);
-    const [r0, g0, b0] = sc.bazKolor;
-    const r1 = Math.min(255, Math.round(r0 * (0.4 + 0.8 * swiatlo)));
-    const g1 = Math.min(255, Math.round(g0 * (0.4 + 0.8 * swiatlo)));
-    const b1 = Math.min(255, Math.round(b0 * (0.4 + 0.8 * swiatlo)));
-    const kolor = `rgb(${r1},${g1},${b1})`;
-
-    const pts = sc.idx.map(i => p[i]);
-    rysujSciane(ctx, pts, kolor);
-
-    // Wyraźny kontur zewnętrzny
-    ctx.strokeStyle = `rgba(180,210,255,0.6)`;
-    ctx.lineWidth = 0.8;
+  // Rysujemy ściany: wypełnienie + kontur razem (od najdalszej do najbliższej)
+  for (const sc of wszystkieSciany) {
+    ctx.beginPath();
+    ctx.moveTo(sc.pts[0][0], sc.pts[0][1]);
+    for (let i = 1; i < sc.pts.length; i++) ctx.lineTo(sc.pts[i][0], sc.pts[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = sc.kolor;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(180,210,255,0.45)';
+    ctx.lineWidth = 0.7;
     ctx.stroke();
   }
 }
