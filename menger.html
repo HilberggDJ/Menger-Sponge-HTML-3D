@@ -34,23 +34,24 @@
 
     .controls {
       display: flex;
-      gap: 16px;
+      gap: 30px;
       align-items: center;
       margin-top: 10px;
       flex-wrap: wrap;
       justify-content: center;
     }
 
-    label { font-size: 0.85rem; color: #aaa; }
+    label { font-size: 1.1rem; color: #aaa; display: flex; align-items: center; gap: 10px; }
 
     input[type=range] {
       accent-color: #88aaff;
-      width: 120px;
+      width: 200px;
+      height: 6px;
     }
 
     .info {
       margin-top: 6px;
-      font-size: 0.75rem;
+      font-size: 0.85rem;
       color: #555;
     }
   </style>
@@ -58,18 +59,18 @@
 <body>
 
 <h1>Gąbka Mengera</h1>
-<canvas id="c" width="640" height="500"></canvas>
+<canvas id="c"></canvas>
 
 <div class="controls">
   <label>
     Poziom:
-    <input type="range" id="level" min="0" max="3" value="2" step="1">
+    <input type="range" id="level" min="0" max="4" value="2" step="1">
     <span id="levelVal">2</span>
   </label>
 
   <label>
     Zoom:
-    <input type="range" id="zoom" min="100" max="400" value="220" step="10">
+    <input type="range" id="zoom" min="100" max="600" value="340" step="10">
   </label>
 </div>
 
@@ -171,10 +172,23 @@ function rysujSciane(ctx, punkty2D, kolor) {
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-const W = canvas.width, H = canvas.height;
+
+// Dopasowujemy canvas do ekranu
+function dopasujCanvas() {
+  const reserved = 150;
+  const size = Math.min(window.innerWidth - 20, window.innerHeight - reserved);
+  canvas.width  = size;
+  canvas.height = size;
+}
+dopasujCanvas();
+window.addEventListener('resize', () => { dopasujCanvas(); rysuj(); });
+
+let W = canvas.width, H = canvas.height;
+function getWH() { W = canvas.width; H = canvas.height; }
+
 
 let rotY = 0.5, rotX = -0.4; // kąty obrotu
-let zoom = 220;
+let zoom = 340;
 let level = 2;
 let kostki = [];
 
@@ -194,7 +208,7 @@ const SCIANY_DEF = [
 ];
 
 function rysuj() {
-  ctx.clearRect(0, 0, W, H);
+  getWH(); ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = '#0a0a0f';
   ctx.fillRect(0, 0, W, H);
 
