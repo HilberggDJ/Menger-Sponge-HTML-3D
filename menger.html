@@ -1,330 +1,510 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pl">
-<head>
-  <meta charset="UTF-8">
-  <title>Gąbka Mengera</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    <head>
+        <meta charset="UTF-8" />
+        <title>Gąbka Mengera</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                background: #0a0a0f;
+                color: #e0e0e0;
+                font-family: "Courier New", monospace;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                height: 100vh;
+                overflow: hidden;
+            }
+            h1 {
+                margin-top: 14px;
+                font-size: 1.3rem;
+                letter-spacing: 4px;
+                color: #88aaff;
+                text-transform: uppercase;
+            }
+            canvas {
+                cursor: grab;
+                margin-top: 6px;
+            }
+            canvas:active {
+                cursor: grabbing;
+            }
+            .controls {
+                display: flex;
+                gap: 14px;
+                align-items: center;
+                margin-top: 8px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            label {
+                font-size: 0.9rem;
+                color: #aaa;
+                display: flex;
+                align-items: center;
+                gap: 7px;
+            }
+            input[type="range"] {
+                accent-color: #88aaff;
+                width: 120px;
+                height: 6px;
+            }
+            .btn {
+                background: #1a1a2e;
+                border: 1px solid #88aaff;
+                color: #88aaff;
+                padding: 6px 14px;
+                font-family: "Courier New", monospace;
+                font-size: 0.85rem;
+                cursor: pointer;
+                border-radius: 4px;
+                transition: background 0.15s;
+                white-space: nowrap;
+            }
+            .btn:hover {
+                background: #2a2a4e;
+            }
+            .btn:disabled {
+                opacity: 0.35;
+                cursor: default;
+            }
+            .btn.step {
+                border-color: #ffcc66;
+                color: #ffcc66;
+            }
+            .btn.step:hover {
+                background: #2e2a1a;
+            }
+            #statusBar {
+                font-size: 0.82rem;
+                color: #88aaff;
+                margin-top: 4px;
+                height: 1.2em;
+            }
+            .info {
+                margin-top: 3px;
+                font-size: 0.78rem;
+                color: #555;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Gąbka Mengera</h1>
+        <canvas id="c"></canvas>
 
-    body {
-      background: #0a0a0f;
-      color: #e0e0e0;
-      font-family: 'Courier New', monospace;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      height: 100vh;
-      overflow: hidden;
-    }
+        <div class="controls">
+            <label>
+                Poziom:
+                <input
+                    type="range"
+                    id="level"
+                    min="0"
+                    max="4"
+                    value="2"
+                    step="1"
+                />
+                <span id="levelVal">2</span>
+            </label>
+            <label>
+                Zoom:
+                <input
+                    type="range"
+                    id="zoom"
+                    min="100"
+                    max="600"
+                    value="340"
+                    step="10"
+                />
+            </label>
+            <label>
+                Prędkość:
+                <input
+                    type="range"
+                    id="speed"
+                    min="1"
+                    max="120"
+                    value="30"
+                    step="1"
+                />
+            </label>
+            <button class="btn" id="btnBuild">▶ Buduj</button>
+            <button class="btn" id="btnStop" disabled>⏸ Stop</button>
+            <button class="btn step" id="btnStep">⊞ Krok</button>
+            <button class="btn" id="btnReset">↺ Reset</button>
+        </div>
 
-    h1 {
-      margin-top: 16px;
-      font-size: 1.3rem;
-      letter-spacing: 4px;
-      color: #88aaff;
-      text-transform: uppercase;
-    }
+        <div id="statusBar"></div>
+        <div class="info">🖱 Przeciągnij myszką, żeby obracać</div>
 
-    canvas {
-      cursor: grab;
-      margin-top: 8px;
-    }
+        <script>
+            // ─────────────────────────────────────────────
+            //  Generowanie kostek gąbki Mengera
+            // ─────────────────────────────────────────────
 
-    canvas:active { cursor: grabbing; }
+            function czyUsunac(x, y, z) {
+                let s = 0;
+                if (x === 1) s++;
+                if (y === 1) s++;
+                if (z === 1) s++;
+                return s >= 2;
+            }
 
-    .controls {
-      display: flex;
-      gap: 30px;
-      align-items: center;
-      margin-top: 10px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
+            function generujKostki(sx, sy, sz, size, lvl) {
+                if (lvl === 0) return [[sx, sy, sz, size]];
+                const m = size / 3;
+                const wynik = [];
+                for (let x = 0; x < 3; x++)
+                    for (let y = 0; y < 3; y++)
+                        for (let z = 0; z < 3; z++) {
+                            if (czyUsunac(x, y, z)) continue;
+                            for (const k of generujKostki(
+                                sx + x * m,
+                                sy + y * m,
+                                sz + z * m,
+                                m,
+                                lvl - 1,
+                            ))
+                                wynik.push(k);
+                        }
+                return wynik;
+            }
 
-    label { font-size: 1.1rem; color: #aaa; display: flex; align-items: center; gap: 10px; }
+            // ─────────────────────────────────────────────
+            //  Projekcja 3D → 2D
+            // ─────────────────────────────────────────────
 
-    input[type=range] {
-      accent-color: #88aaff;
-      width: 200px;
-      height: 6px;
-    }
+            function obrocPunkt(x, y, z, rY, rX) {
+                const cY = Math.cos(rY),
+                    sY = Math.sin(rY);
+                const x1 = x * cY - z * sY,
+                    z1 = x * sY + z * cY;
+                const cX = Math.cos(rX),
+                    sX = Math.sin(rX);
+                return [x1, y * cX - z1 * sX, y * sX + z1 * cX];
+            }
 
-    .info {
-      margin-top: 6px;
-      font-size: 0.85rem;
-      color: #555;
-    }
-  </style>
-</head>
-<body>
+            function rzutuj(x, y, z, zm) {
+                const sc = zm / (z + 4);
+                return [x * sc, y * sc];
+            }
 
-<h1>Gąbka Mengera</h1>
-<canvas id="c"></canvas>
+            // ─────────────────────────────────────────────
+            //  Canvas
+            // ─────────────────────────────────────────────
 
-<div class="controls">
-  <label>
-    Poziom:
-    <input type="range" id="level" min="0" max="4" value="2" step="1">
-    <span id="levelVal">2</span>
-  </label>
+            const canvas = document.getElementById("c");
+            const ctx = canvas.getContext("2d");
 
-  <label>
-    Zoom:
-    <input type="range" id="zoom" min="100" max="600" value="340" step="10">
-  </label>
-</div>
+            function dopasujCanvas() {
+                const s = Math.min(
+                    window.innerWidth - 20,
+                    window.innerHeight - 175,
+                );
+                canvas.width = canvas.height = s;
+            }
+            dopasujCanvas();
+            window.addEventListener("resize", () => {
+                dopasujCanvas();
+                rysuj();
+            });
 
-<div class="info">🖱 Przeciągnij myszką, żeby obracać</div>
+            // ─────────────────────────────────────────────
+            //  Stan aplikacji
+            // ─────────────────────────────────────────────
 
-<script>
-// ─────────────────────────────────────────────
-//  KROK 1: Generowanie kostek gąbki
-// ─────────────────────────────────────────────
+            let rotY = 0.5,
+                rotX = -0.4,
+                zoom = 340,
+                level = 2;
+            let allKostki = [],
+                visibleKostki = [];
+            let animating = false,
+                animIndex = 0,
+                rafId = null,
+                frameCounter = 0;
 
-// Gąbka Mengera to kostka, z której rekurencyjnie
-// usuwamy środkowe sześciany (1 środkowy na każdej ściance + 1 w centrum).
-// W każdym kroku dzielimy kostkę 3x3x3 i usuwamy 7 z 27 mini-kostek.
+            const SCIANY = [
+                { idx: [0, 1, 2, 3], nx: 0, ny: 0, nz: -1, bc: [58, 90, 170] },
+                { idx: [7, 6, 5, 4], nx: 0, ny: 0, nz: 1, bc: [40, 60, 120] },
+                { idx: [3, 2, 6, 7], nx: 0, ny: 1, nz: 0, bc: [74, 106, 204] },
+                { idx: [4, 5, 1, 0], nx: 0, ny: -1, nz: 0, bc: [30, 45, 90] },
+                { idx: [4, 0, 3, 7], nx: -1, ny: 0, nz: 0, bc: [34, 51, 136] },
+                { idx: [1, 5, 6, 2], nx: 1, ny: 0, nz: 0, bc: [46, 68, 153] },
+            ];
 
-// Sprawdza, czy mini-kostka na pozycji (x, y, z) w siatce 3x3x3
-// powinna zostać usunięta.
-function czyUsunac(x, y, z) {
-  // Liczymy, ile współrzędnych jest "środkowe" (równe 1 w siatce 0-1-2)
-  let srodkowe = 0;
-  if (x === 1) srodkowe++;
-  if (y === 1) srodkowe++;
-  if (z === 1) srodkowe++;
-  // Usuwamy jeśli co najmniej 2 współrzędne są środkowe
-  return srodkowe >= 2;
-}
+            // ─────────────────────────────────────────────
+            //  Rysowanie
+            // ─────────────────────────────────────────────
 
-// Generuje listę kostek jako [cx, cy, cz, rozmiar]
-// start: punkt startowy, size: rozmiar aktualnej kostki, level: ile razy jeszcze dzielić
-function generujKostki(sx, sy, sz, size, level) {
-  if (level === 0) {
-    // Zatrzymujemy rekurencję – zwracamy jedną kostkę
-    return [[sx, sy, sz, size]];
-  }
+            function rysuj() {
+                const W = canvas.width,
+                    H = canvas.height;
+                ctx.clearRect(0, 0, W, H);
+                ctx.fillStyle = "#0a0a0f";
+                ctx.fillRect(0, 0, W, H);
 
-  const maly = size / 3; // rozmiar mini-kostki
-  const kostki = [];
+                const buf = [];
 
-  for (let x = 0; x < 3; x++) {
-    for (let y = 0; y < 3; y++) {
-      for (let z = 0; z < 3; z++) {
-        if (czyUsunac(x, y, z)) continue; // ta kostka jest wycinana
+                for (const [sx, sy, sz, s] of visibleKostki) {
+                    const v = [
+                        [sx, sy, sz],
+                        [sx + s, sy, sz],
+                        [sx + s, sy + s, sz],
+                        [sx, sy + s, sz],
+                        [sx, sy, sz + s],
+                        [sx + s, sy, sz + s],
+                        [sx + s, sy + s, sz + s],
+                        [sx, sy + s, sz + s],
+                    ];
+                    const obr = v.map(([x, y, z]) =>
+                        obrocPunkt(x, y, z, rotY, rotX),
+                    );
+                    const p2d = obr.map(([rx, ry, rz]) => {
+                        const [px, py] = rzutuj(rx, ry, rz, zoom);
+                        return [px + W / 2, py + H / 2];
+                    });
 
-        // Pozycja mini-kostki
-        const nx = sx + x * maly;
-        const ny = sy + y * maly;
-        const nz = sz + z * maly;
+                    for (const sc of SCIANY) {
+                        const [, , rnz] = obrocPunkt(
+                            sc.nx,
+                            sc.ny,
+                            sc.nz,
+                            rotY,
+                            rotX,
+                        );
+                        if (rnz > 0) continue;
+                        const avgZ =
+                            sc.idx.reduce((acc, i) => acc + obr[i][2], 0) / 4;
+                        const sw = Math.max(0, -rnz);
+                        const [r0, g0, b0] = sc.bc;
+                        buf.push({
+                            pts: sc.idx.map((i) => p2d[i]),
+                            kolor: `rgb(${Math.min(255, Math.round(r0 * (0.4 + 0.8 * sw)))},${Math.min(255, Math.round(g0 * (0.4 + 0.8 * sw)))},${Math.min(255, Math.round(b0 * (0.4 + 0.8 * sw)))})`,
+                            avgZ,
+                        });
+                    }
+                }
 
-        // Rekurencja: dzielimy mini-kostkę dalej
-        const podkostki = generujKostki(nx, ny, nz, maly, level - 1);
-        for (const k of podkostki) kostki.push(k);
-      }
-    }
-  }
+                buf.sort((a, b) => b.avgZ - a.avgZ);
 
-  return kostki;
-}
+                for (const sc of buf) {
+                    ctx.beginPath();
+                    ctx.moveTo(sc.pts[0][0], sc.pts[0][1]);
+                    for (let i = 1; i < sc.pts.length; i++)
+                        ctx.lineTo(sc.pts[i][0], sc.pts[i][1]);
+                    ctx.closePath();
+                    ctx.fillStyle = sc.kolor;
+                    ctx.fill();
+                    ctx.strokeStyle = "rgba(180,210,255,0.45)";
+                    ctx.lineWidth = 0.7;
+                    ctx.stroke();
+                }
+            }
 
-// ─────────────────────────────────────────────
-//  KROK 2: Rysowanie 3D na 2D (projekcja)
-// ─────────────────────────────────────────────
+            function setStatus(txt) {
+                document.getElementById("statusBar").textContent = txt;
+            }
 
-// Obracamy punkt 3D wokół osi Y i X
-function obrocPunkt(x, y, z, rotY, rotX) {
-  // Obrót wokół Y (lewo-prawo)
-  const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
-  const x1 = x * cosY - z * sinY;
-  const z1 = x * sinY + z * cosY;
+            // ─────────────────────────────────────────────
+            //  Animacja budowania (auto)
+            // ─────────────────────────────────────────────
 
-  // Obrót wokół X (góra-dół)
-  const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
-  const y1 = y * cosX - z1 * sinX;
-  const z2 = y * sinX + z1 * cosX;
+            function animKrok() {
+                if (!animating) return;
+                const speed = parseInt(document.getElementById("speed").value);
 
-  return [x1, y1, z2];
-}
+                if (speed <= 30) {
+                    // wolno: 1 kostka co (31 - speed) klatek
+                    const delay = 31 - speed;
+                    frameCounter++;
+                    if (frameCounter >= delay) {
+                        frameCounter = 0;
+                        animIndex = Math.min(animIndex + 1, allKostki.length);
+                        visibleKostki = allKostki.slice(0, animIndex);
+                        rysuj();
+                    }
+                } else {
+                    // szybko: wiele kostek na klatkę
+                    const ile = Math.round((speed - 30) * 2);
+                    animIndex = Math.min(animIndex + ile, allKostki.length);
+                    visibleKostki = allKostki.slice(0, animIndex);
+                    rysuj();
+                }
 
-// Rzutowanie perspektywiczne: zamienia 3D → 2D
-function rzutuj(x, y, z, zoom) {
-  const odleglosc = 4; // "kamera" jest dalej
-  const skala = zoom / (z + odleglosc);
-  return [x * skala, y * skala];
-}
+                setStatus(
+                    `🔨 Budowanie: ${animIndex} / ${allKostki.length} kostek`,
+                );
 
-// Rysuje jedną ścianę (4 wierzchołki) wypełnioną kolorem
-function rysujSciane(ctx, punkty2D, kolor) {
-  ctx.beginPath();
-  ctx.moveTo(punkty2D[0][0], punkty2D[0][1]);
-  for (let i = 1; i < punkty2D.length; i++) {
-    ctx.lineTo(punkty2D[i][0], punkty2D[i][1]);
-  }
-  ctx.closePath();
-  ctx.fillStyle = kolor;
-  ctx.fill();
-}
+                if (animIndex >= allKostki.length) {
+                    animating = false;
+                    document.getElementById("btnBuild").disabled = false;
+                    document.getElementById("btnStop").disabled = true;
+                    setStatus(
+                        `✓ Gotowe — ${allKostki.length} kostek (poziom ${level})`,
+                    );
+                    return;
+                }
+                rafId = requestAnimationFrame(animKrok);
+            }
 
-// ─────────────────────────────────────────────
-//  KROK 3: Główna pętla rysowania
-// ─────────────────────────────────────────────
+            function startAnim() {
+                if (animating) return;
+                if (animIndex >= allKostki.length) {
+                    animIndex = 0;
+                    visibleKostki = [];
+                    frameCounter = 0;
+                }
+                animating = true;
+                document.getElementById("btnBuild").disabled = true;
+                document.getElementById("btnStop").disabled = false;
+                rafId = requestAnimationFrame(animKrok);
+            }
 
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
+            function stopAnim() {
+                animating = false;
+                if (rafId) cancelAnimationFrame(rafId);
+                document.getElementById("btnBuild").disabled = false;
+                document.getElementById("btnStop").disabled = true;
+                setStatus(
+                    `⏸ Zatrzymano — ${animIndex} / ${allKostki.length} kostek`,
+                );
+            }
 
-// Dopasowujemy canvas do ekranu
-function dopasujCanvas() {
-  const reserved = 150;
-  const size = Math.min(window.innerWidth - 20, window.innerHeight - reserved);
-  canvas.width  = size;
-  canvas.height = size;
-}
-dopasujCanvas();
-window.addEventListener('resize', () => { dopasujCanvas(); rysuj(); });
+            // ─────────────────────────────────────────────
+            //  Krok ręczny
+            // ─────────────────────────────────────────────
 
-let W = canvas.width, H = canvas.height;
-function getWH() { W = canvas.width; H = canvas.height; }
+            function krokReczny() {
+                if (animating) stopAnim(); // zatrzymaj auto jeśli leciało
+                if (animIndex >= allKostki.length) {
+                    // jeśli już gotowe — zacznij od nowa
+                    animIndex = 0;
+                    visibleKostki = [];
+                }
+                animIndex = Math.min(animIndex + 1, allKostki.length);
+                visibleKostki = allKostki.slice(0, animIndex);
+                rysuj();
+                if (animIndex >= allKostki.length) {
+                    setStatus(
+                        `✓ Gotowe — ${allKostki.length} kostek (poziom ${level})`,
+                    );
+                } else {
+                    setStatus(
+                        `⊞ Krok: ${animIndex} / ${allKostki.length} kostek`,
+                    );
+                }
+            }
 
+            // ─────────────────────────────────────────────
+            //  Reset
+            // ─────────────────────────────────────────────
 
-let rotY = 0.5, rotX = -0.4; // kąty obrotu
-let zoom = 340;
-let level = 2;
-let kostki = [];
+            function resetAll() {
+                stopAnim();
+                animIndex = 0;
+                frameCounter = 0;
+                rotY = 0.5;
+                rotX = -0.4;
+                zoom = 340;
+                level = 2;
+                document.getElementById("level").value = 2;
+                document.getElementById("levelVal").textContent = 2;
+                document.getElementById("zoom").value = 340;
+                przeliczKostki();
+                visibleKostki = [];
+                document.getElementById("btnBuild").disabled = false;
+                document.getElementById("btnStop").disabled = true;
+                setStatus("");
+                rysuj();
+            }
 
-function przeliczKostki() {
-  // Generujemy kostki w zakresie od -1 do 1
-  kostki = generujKostki(-1, -1, -1, 2, level);
-}
+            // ─────────────────────────────────────────────
+            //  Obliczanie kostek
+            // ─────────────────────────────────────────────
 
-// Definicje ścian – normalne i kolory bazy
-const SCIANY_DEF = [
-  { idx: [0,1,2,3], nx:  0,  ny:  0,  nz: -1, bazKolor: [58, 90, 170]  }, // przód
-  { idx: [7,6,5,4], nx:  0,  ny:  0,  nz:  1, bazKolor: [40, 60, 120]  }, // tył
-  { idx: [3,2,6,7], nx:  0,  ny:  1,  nz:  0, bazKolor: [74, 106, 204] }, // góra
-  { idx: [4,5,1,0], nx:  0,  ny: -1,  nz:  0, bazKolor: [30, 45, 90]   }, // dół
-  { idx: [4,0,3,7], nx: -1,  ny:  0,  nz:  0, bazKolor: [34, 51, 136]  }, // lewo
-  { idx: [1,5,6,2], nx:  1,  ny:  0,  nz:  0, bazKolor: [46, 68, 153]  }, // prawo
-];
+            function przeliczKostki() {
+                allKostki = generujKostki(-1, -1, -1, 2, level);
+                if (!animating) visibleKostki = [...allKostki];
+            }
 
-function rysuj() {
-  getWH(); ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#0a0a0f';
-  ctx.fillRect(0, 0, W, H);
+            // ─────────────────────────────────────────────
+            //  Mysz – obrót
+            // ─────────────────────────────────────────────
 
-  // Zbieramy wszystkie widoczne ściany ze wszystkich kostek
-  const wszystkieSciany = [];
+            let drag = false,
+                ox,
+                oy;
+            canvas.addEventListener("mousedown", (e) => {
+                drag = true;
+                ox = e.clientX;
+                oy = e.clientY;
+            });
+            window.addEventListener("mouseup", () => {
+                drag = false;
+            });
+            window.addEventListener("mousemove", (e) => {
+                if (!drag) return;
+                rotY += (e.clientX - ox) * 0.01;
+                rotX += (e.clientY - oy) * 0.01;
+                ox = e.clientX;
+                oy = e.clientY;
+                rysuj();
+            });
 
-  for (const k of kostki) {
-    const [sx, sy, sz, s] = k;
+            // ─────────────────────────────────────────────
+            //  Suwaki
+            // ─────────────────────────────────────────────
 
-    const v = [
-      [sx,   sy,   sz  ],
-      [sx+s, sy,   sz  ],
-      [sx+s, sy+s, sz  ],
-      [sx,   sy+s, sz  ],
-      [sx,   sy,   sz+s],
-      [sx+s, sy,   sz+s],
-      [sx+s, sy+s, sz+s],
-      [sx,   sy+s, sz+s],
-    ];
+            document
+                .getElementById("level")
+                .addEventListener("input", function () {
+                    level = +this.value;
+                    document.getElementById("levelVal").textContent = level;
+                    if (animating) stopAnim();
+                    animIndex = 0;
+                    frameCounter = 0;
+                    przeliczKostki();
+                    visibleKostki = [];
+                    setStatus(
+                        `Poziom ${level} — ${allKostki.length} kostek. Kliknij ▶ Buduj lub ⊞ Krok`,
+                    );
+                    rysuj();
+                });
 
-    // Obracamy wierzchołki (zachowujemy z dla sortowania)
-    const obr = v.map(([x, y, z]) => obrocPunkt(x, y, z, rotY, rotX));
-    const p2d = obr.map(([rx, ry, rz]) => {
-      const [px, py] = rzutuj(rx, ry, rz, zoom);
-      return [px + W/2, py + H/2];
-    });
+            document
+                .getElementById("zoom")
+                .addEventListener("input", function () {
+                    zoom = +this.value;
+                    rysuj();
+                });
 
-    for (const sc of SCIANY_DEF) {
-      const [, , rnz] = obrocPunkt(sc.nx, sc.ny, sc.nz, rotY, rotX);
-      if (rnz > 0) continue; // ściana patrzy w tył
+            // ─────────────────────────────────────────────
+            //  Przyciski
+            // ─────────────────────────────────────────────
 
-      // Średnie Z wierzchołków ściany – do sortowania
-      const avgZ = sc.idx.reduce((sum, i) => sum + obr[i][2], 0) / 4;
+            document
+                .getElementById("btnBuild")
+                .addEventListener("click", startAnim);
+            document
+                .getElementById("btnStop")
+                .addEventListener("click", stopAnim);
+            document
+                .getElementById("btnStep")
+                .addEventListener("click", krokReczny);
+            document
+                .getElementById("btnReset")
+                .addEventListener("click", resetAll);
 
-      const swiatlo = Math.max(0, -rnz);
-      const [r0, g0, b0] = sc.bazKolor;
-      const r1 = Math.min(255, Math.round(r0 * (0.4 + 0.8 * swiatlo)));
-      const g1 = Math.min(255, Math.round(g0 * (0.4 + 0.8 * swiatlo)));
-      const b1 = Math.min(255, Math.round(b0 * (0.4 + 0.8 * swiatlo)));
+            // ─────────────────────────────────────────────
+            //  Start
+            // ─────────────────────────────────────────────
 
-      wszystkieSciany.push({
-        pts: sc.idx.map(i => p2d[i]),
-        kolor: `rgb(${r1},${g1},${b1})`,
-        avgZ
-      });
-    }
-  }
-
-  // Sortujemy ściany: dalsze najpierw
-  wszystkieSciany.sort((a, b) => b.avgZ - a.avgZ);
-
-  // Rysujemy ściany: wypełnienie + kontur razem (od najdalszej do najbliższej)
-  for (const sc of wszystkieSciany) {
-    ctx.beginPath();
-    ctx.moveTo(sc.pts[0][0], sc.pts[0][1]);
-    for (let i = 1; i < sc.pts.length; i++) ctx.lineTo(sc.pts[i][0], sc.pts[i][1]);
-    ctx.closePath();
-    ctx.fillStyle = sc.kolor;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(180,210,255,0.45)';
-    ctx.lineWidth = 0.7;
-    ctx.stroke();
-  }
-}
-
-// ─────────────────────────────────────────────
-//  KROK 4: Obsługa myszki (obrót)
-// ─────────────────────────────────────────────
-
-let ciagniety = false;
-let ostatX, ostatY;
-
-canvas.addEventListener('mousedown', e => {
-  ciagniety = true;
-  ostatX = e.clientX;
-  ostatY = e.clientY;
-});
-
-window.addEventListener('mouseup', () => { ciagniety = false; });
-
-window.addEventListener('mousemove', e => {
-  if (!ciagniety) return;
-  const dx = e.clientX - ostatX;
-  const dy = e.clientY - ostatY;
-  rotY += dx * 0.01; // obrót poziomy
-  rotX += dy * 0.01; // obrót pionowy
-  ostatX = e.clientX;
-  ostatY = e.clientY;
-  rysuj();
-});
-
-// ─────────────────────────────────────────────
-//  KROK 5: Suwaki
-// ─────────────────────────────────────────────
-
-const sliderLevel = document.getElementById('level');
-const spanLevel   = document.getElementById('levelVal');
-const sliderZoom  = document.getElementById('zoom');
-
-sliderLevel.addEventListener('input', () => {
-  level = parseInt(sliderLevel.value);
-  spanLevel.textContent = level;
-  przeliczKostki();
-  rysuj();
-});
-
-sliderZoom.addEventListener('input', () => {
-  zoom = parseInt(sliderZoom.value);
-  rysuj();
-});
-
-// ─────────────────────────────────────────────
-//  START
-// ─────────────────────────────────────────────
-przeliczKostki();
-rysuj();
-</script>
-</body>
+            przeliczKostki();
+            rysuj();
+        </script>
+    </body>
 </html>
