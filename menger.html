@@ -9,9 +9,10 @@
                 padding: 0;
                 box-sizing: border-box;
             }
+
             body {
-                background: #0a0a0f;
-                color: #e0e0e0;
+                background: #ffffff;
+                color: #1a1a1a;
                 font-family: "Courier New", monospace;
                 display: flex;
                 flex-direction: column;
@@ -19,20 +20,40 @@
                 height: 100vh;
                 overflow: hidden;
             }
-            h1 {
-                margin-top: 14px;
+
+            header {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                padding: 8px 18px;
+                border-bottom: 3px solid #990a2c;
+                position: relative;
+            }
+
+            header img {
+                height: 48px;
+                flex-shrink: 0;
+            }
+
+            header h1 {
                 font-size: 1.3rem;
                 letter-spacing: 4px;
-                color: #88aaff;
+                color: #990a2c;
                 text-transform: uppercase;
+                font-family: "Courier New", monospace;
+                position: absolute;
+                left: 50%;
+                transform: translateX(-50%);
             }
+
             canvas {
                 cursor: grab;
-                margin-top: 6px;
+                margin-top: 8px;
             }
             canvas:active {
                 cursor: grabbing;
             }
+
             .controls {
                 display: flex;
                 gap: 14px;
@@ -41,59 +62,75 @@
                 flex-wrap: wrap;
                 justify-content: center;
             }
+
             label {
                 font-size: 0.9rem;
-                color: #aaa;
+                color: #000;
                 display: flex;
                 align-items: center;
                 gap: 7px;
             }
+
             input[type="range"] {
-                accent-color: #88aaff;
+                accent-color: #990a2c;
                 width: 120px;
                 height: 6px;
             }
+
             .btn {
-                background: #1a1a2e;
-                border: 1px solid #88aaff;
-                color: #88aaff;
+                background: #ffffff;
+                border: 1.5px solid #990a2c;
+                color: #990a2c;
                 padding: 6px 14px;
                 font-family: "Courier New", monospace;
                 font-size: 0.85rem;
                 cursor: pointer;
                 border-radius: 4px;
-                transition: background 0.15s;
+                transition:
+                    background 0.15s,
+                    color 0.15s;
                 white-space: nowrap;
             }
             .btn:hover {
-                background: #2a2a4e;
+                background: #990a2c;
+                color: #ffffff;
             }
             .btn:disabled {
                 opacity: 0.35;
                 cursor: default;
             }
+            .btn:disabled:hover {
+                background: #ffffff;
+                color: #990a2c;
+            }
             .btn.step {
-                border-color: #ffcc66;
-                color: #ffcc66;
+                border-color: #c0392b;
+                color: #c0392b;
             }
             .btn.step:hover {
-                background: #2e2a1a;
+                background: #c0392b;
+                color: #ffffff;
             }
+
             #statusBar {
                 font-size: 0.82rem;
-                color: #88aaff;
+                color: #990a2c;
                 margin-top: 4px;
                 height: 1.2em;
             }
             .info {
                 margin-top: 3px;
                 font-size: 0.78rem;
-                color: #555;
+                color: #888;
             }
         </style>
     </head>
     <body>
-        <h1>Gąbka Mengera</h1>
+        <header>
+            <img src="logo.png" alt="Logo uczelni" />
+            <h1>Gąbka Mengera</h1>
+        </header>
+
         <canvas id="c"></canvas>
 
         <div class="controls">
@@ -202,7 +239,7 @@
             function dopasujCanvas() {
                 const s = Math.min(
                     window.innerWidth - 20,
-                    window.innerHeight - 175,
+                    window.innerHeight - 185,
                 );
                 canvas.width = canvas.height = s;
             }
@@ -228,12 +265,12 @@
                 frameCounter = 0;
 
             const SCIANY = [
-                { idx: [0, 1, 2, 3], nx: 0, ny: 0, nz: -1, bc: [58, 90, 170] },
-                { idx: [7, 6, 5, 4], nx: 0, ny: 0, nz: 1, bc: [40, 60, 120] },
-                { idx: [3, 2, 6, 7], nx: 0, ny: 1, nz: 0, bc: [74, 106, 204] },
-                { idx: [4, 5, 1, 0], nx: 0, ny: -1, nz: 0, bc: [30, 45, 90] },
-                { idx: [4, 0, 3, 7], nx: -1, ny: 0, nz: 0, bc: [34, 51, 136] },
-                { idx: [1, 5, 6, 2], nx: 1, ny: 0, nz: 0, bc: [46, 68, 153] },
+                { idx: [0, 1, 2, 3], nx: 0, ny: 0, nz: -1, bc: [153, 10, 44] }, // przód
+                { idx: [7, 6, 5, 4], nx: 0, ny: 0, nz: 1, bc: [80, 4, 22] }, // tył
+                { idx: [3, 2, 6, 7], nx: 0, ny: 1, nz: 0, bc: [160, 12, 48] }, // góra
+                { idx: [4, 5, 1, 0], nx: 0, ny: -1, nz: 0, bc: [60, 2, 15] }, // dół
+                { idx: [4, 0, 3, 7], nx: -1, ny: 0, nz: 0, bc: [115, 7, 32] }, // lewo
+                { idx: [1, 5, 6, 2], nx: 1, ny: 0, nz: 0, bc: [140, 10, 40] }, // prawo
             ];
 
             // ─────────────────────────────────────────────
@@ -244,7 +281,7 @@
                 const W = canvas.width,
                     H = canvas.height;
                 ctx.clearRect(0, 0, W, H);
-                ctx.fillStyle = "#0a0a0f";
+                ctx.fillStyle = "#ffffff";
                 ctx.fillRect(0, 0, W, H);
 
                 const buf = [];
@@ -283,7 +320,10 @@
                         const [r0, g0, b0] = sc.bc;
                         buf.push({
                             pts: sc.idx.map((i) => p2d[i]),
-                            kolor: `rgb(${Math.min(255, Math.round(r0 * (0.4 + 0.8 * sw)))},${Math.min(255, Math.round(g0 * (0.4 + 0.8 * sw)))},${Math.min(255, Math.round(b0 * (0.4 + 0.8 * sw)))})`,
+                            kolor: `rgb(
+                                ${Math.min(255, Math.round(r0 * (0.4 + 0.8 * sw)))},
+                                ${Math.min(255, Math.round(g0 * (0.4 + 0.8 * sw)))},
+                                ${Math.min(255, Math.round(b0 * (0.4 + 0.8 * sw)))})`,
                             avgZ,
                         });
                     }
@@ -299,8 +339,8 @@
                     ctx.closePath();
                     ctx.fillStyle = sc.kolor;
                     ctx.fill();
-                    ctx.strokeStyle = "rgba(180,210,255,0.45)";
-                    ctx.lineWidth = 0.7;
+                    ctx.strokeStyle = "rgba(100, 0, 25, 0.4)";
+                    ctx.lineWidth = 0.6;
                     ctx.stroke();
                 }
             }
@@ -310,15 +350,13 @@
             }
 
             // ─────────────────────────────────────────────
-            //  Animacja budowania (auto)
+            //  Animacja budowania
             // ─────────────────────────────────────────────
 
             function animKrok() {
                 if (!animating) return;
                 const speed = parseInt(document.getElementById("speed").value);
-
                 if (speed <= 30) {
-                    // wolno: 1 kostka co (31 - speed) klatek
                     const delay = 31 - speed;
                     frameCounter++;
                     if (frameCounter >= delay) {
@@ -328,17 +366,14 @@
                         rysuj();
                     }
                 } else {
-                    // szybko: wiele kostek na klatkę
                     const ile = Math.round((speed - 30) * 2);
                     animIndex = Math.min(animIndex + ile, allKostki.length);
                     visibleKostki = allKostki.slice(0, animIndex);
                     rysuj();
                 }
-
                 setStatus(
                     `🔨 Budowanie: ${animIndex} / ${allKostki.length} kostek`,
                 );
-
                 if (animIndex >= allKostki.length) {
                     animating = false;
                     document.getElementById("btnBuild").disabled = false;
@@ -379,24 +414,22 @@
             // ─────────────────────────────────────────────
 
             function krokReczny() {
-                if (animating) stopAnim(); // zatrzymaj auto jeśli leciało
+                if (animating) stopAnim();
                 if (animIndex >= allKostki.length) {
-                    // jeśli już gotowe — zacznij od nowa
                     animIndex = 0;
                     visibleKostki = [];
                 }
                 animIndex = Math.min(animIndex + 1, allKostki.length);
                 visibleKostki = allKostki.slice(0, animIndex);
                 rysuj();
-                if (animIndex >= allKostki.length) {
+                if (animIndex >= allKostki.length)
                     setStatus(
                         `✓ Gotowe — ${allKostki.length} kostek (poziom ${level})`,
                     );
-                } else {
+                else
                     setStatus(
                         `⊞ Krok: ${animIndex} / ${allKostki.length} kostek`,
                     );
-                }
             }
 
             // ─────────────────────────────────────────────
@@ -432,7 +465,7 @@
             }
 
             // ─────────────────────────────────────────────
-            //  Mysz – obrót
+            //  Mysz — obrót
             // ─────────────────────────────────────────────
 
             let drag = false,
